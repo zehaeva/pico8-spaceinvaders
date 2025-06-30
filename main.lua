@@ -3,6 +3,11 @@
 -- 1 RUN THE GAME
 -- 2 YOU WIN
 game_state = 1
+  
+timer = 0
+timer_direction = 1
+y_direction = 0
+edge = 0
 
 player = { }
 
@@ -34,10 +39,16 @@ function alien:new (o)
   self.sprite = sprite or 1
   self.cc = rnd(15) * 10 + 30
   self.cooldown = self.cc
+  self.vx = vx or 5
+  self.vy = vy or 0
+  self.xmin = xmin or 0
+  self.xmax = xmax or 50
   return o
 end
 
-function alien:fire(self)
+aggressivealien = alien:new()
+
+function aggressivealien:fire(self)
   --create bullet
   if self.cooldown <= 0 then
     add(abullets, bullet:new{x = self.x, y = self.y + 5, vx = 0, vy = 1, sprite = 3})
@@ -69,22 +80,30 @@ end
 function _init()
   game_state = 1
   
-  player = spaceship:new{x = 64, y = 96, sprite = 2}
+  player = spaceship:new{x = 64, y = 120, sprite = 2}
   
   bullets = { }
   abullets = { }
   
-  timer = 5
+  timer = 1
   timer_direction = 1
   y_direction = 0
+  tick_speed = 10
   
   for i=1, 10 do
     for j=1, 5 do
-	  r = rnd(15) * 10 + 30
-	  a = alien:new{x = 10 * i + timer, y = 10 * j, sprite = 1, cc = r, cooldown = r}
+	  ax = 10 * i + timer
+	  ay = 10 * j
+	  if j == 1 then
+	    r = rnd(15) * 10 + 30
+	    a = aggressivealien:new{x = ax, y = ay, sprite = 0, cc = r, cooldown = r, xmin = ax - 5, xmax = ax + 20}
+	  else
+	    a = alien:new{x = ax, y = ay, sprite = 1, xmin = ax - 5, xmax = ax + 20}
+	  end
       add(aliens, a)
     end
   end
+  --add(aliens, alien:new{x = 100, y = 10, sprite = 1, xmin = 100, xmax = 150})
 end
 
 function _update()
@@ -99,32 +118,41 @@ function _update()
     end
   
     -- player inputs
-    if (btn(0)) then player.x = player.x - 1 end
-    if (btn(1)) then player.x = player.x + 1 end
-    --if (btn(2)) then player.y = player.y - 1 end
-    --if (btn(3)) then player.y = player.y + 1 end
-    
+    if btn(0) and player.x > 0 then player.x = player.x - 1 end
+    if btn(1) and player.x <= 120 then player.x = player.x + 1 end
+    -- player fire!
     if (btn(5)) then player:fire() end
     
     --alien timer movement
-    if timer >= 50 or timer <= -50 then 
-      timer_direction  = timer_direction * -1
+    if timer % 120 == 0 or edge == 1 then 
+      timer_direction = timer_direction * -1
       y_direction = 1
+	  edge = 0
     else
       y_direction = 0
     end
+	
     timer = timer + timer_direction
-    
-    if timer % 10 == 0 then
-      move = (timer % 10) + timer_direction
-    else
-      move = 0
-    end
-    -- monsters move about
+	
+	aliencount = count(aliens)
     for a in all(aliens) do 
-      a.x = a.x + move
+	  if timer % (flr(aliencount / 50 * 10)) == 0 then
+	    movex = (a.x + 1 * timer_direction)
+	    if a.xmax <= movex and timer_direction == 1 then
+	      a.x = a.xmax
+		  edge = 1
+	    elseif a.xmin >= movex and timer_direction == -1 then
+	      a.x = a.xmin
+		  edge = 1
+        else
+          a.x = movex
+		  edge = 0
+	    end
+	  else
+	    edge = 0
+      end
       a.y = a.y + y_direction
-    end
+	end
     
     -- move bullets
     for i, a in pairs(bullets) do 
@@ -146,9 +174,7 @@ function _update()
       end
     end
 	
-    
     -- check for collision
-
     -- bullet collision
     for j,b in pairs(abullets) do
       if (player.y + 3) >= b.y and (player.y) <= b.y and (player.x - 1) <= b.x and (player.x + 3) >= b.x then
@@ -167,14 +193,15 @@ function _update()
         if (a.y + 3) >= b.y and (a.y) <= b.y and (a.x - 1) <= b.x and (a.x + 3) >= b.x then
           deli(aliens, i)
           deli(bullets, j)
-        else
+        elseif a.sprite == 0 then
           a:fire(a)
         end
       end
-      if count(bullets) == 0 then
+	  
+      if count(bullets) == 0 and a.sprite == 0 then
         a:fire(a)
       end
-	  a.cooldown = a.cooldown - 1
+	  a.cooldown = a.cooldown - min(flr(50 / aliencount), 10)
     end
   end
 end
@@ -182,7 +209,6 @@ end
 function _draw()
   -- clear screen
   cls(1)
-  
   if game_state == 0 then
     print('GAME OVER', 48, 58, 7)
   elseif game_state == 2 then
