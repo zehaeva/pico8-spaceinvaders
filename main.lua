@@ -3,14 +3,16 @@
 -- 1 RUN THE GAME
 -- 2 YOU WIN
 game_state = 1
-  
+
+debug_flag = 0
+
 timer = 0
 timer_direction = 1
 y_direction = 0
 edge = 0
 
-alien_columns = 1 -- 10
-alien_rows = 1 -- 5
+alien_columns = 10
+alien_rows = 5
 
 blocks_columns = 5
 blocks_rows = 3
@@ -30,8 +32,8 @@ function bullet:new (o)
   self.y = y or 64
   self.vx = vx or 0
   self.vy = vy or 0
-  self.width = 1
-  self.height = 2
+  self.width = 0
+  self.height = 1
   self.sprite = sprite or 3
   return o
 end
@@ -52,8 +54,8 @@ function alien:new (o)
   self.vy = vy or 0
   self.xmin = xmin or 0
   self.xmax = xmax or 50
-  self.width = 6
-  self.height = 4
+  self.width = 5
+  self.height = 3
   return o
 end
 
@@ -62,7 +64,7 @@ aggressivealien = alien:new()
 function aggressivealien:fire(self)
   --create bullet
   if self.cooldown <= 0 then
-    add(abullets, bullet:new{x = self.x, y = self.y + 5, vx = 0, vy = 1, sprite = 3})
+    add(abullets, bullet:new{x = self.x + 3, y = self.y + 5, vx = 0, vy = 1, sprite = 3})
     self.cooldown = self.cc
   end
 end
@@ -75,18 +77,19 @@ function spaceship:new (o)
   self.__index = self
   self.x = x or 64
   self.y = y or 64
-  self.width = 7
-  self.height = 5
+  self.width = 6
+  self.height = 4
   self.sprite = sprite or 2
   self.cooldown = 0
+  self.cc = cc or 30
   return o
 end
 
 function spaceship:fire()
   --create bullet
   if self.cooldown <= 0 then
-    add(bullets, bullet:new{x = self.x, y = self.y, vx = 0, vy = -1, sprite = 3})
-    self.cooldown = 10
+    add(bullets, bullet:new{x = self.x + 3, y = self.y, vx = 0, vy = -1, sprite = 3})
+    self.cooldown = self.cc
   end
 end
   
@@ -101,15 +104,16 @@ function block:new (o)
   self.y = y or 64
   self.xsize = xsize or 4
   self.ysize = ysize or 4
-  self.width = xsize or 4
-  self.height = ysize or 4
+  self.width = xsize or 3
+  self.height = ysize or 3
   self.sprite = sprite or 0
-  self.hp = hp or 2
+  self.hp = hp or 3
   return o
 end
   
 function collision(a, b)
-  if a.x <= (b.x + b.width) and (a.x + a.width) >= b.x and a.y <= (b.y + b.height) and (a.y + a.height) >= b.y then
+  -- classic collision algo
+  if (a.x) <= (b.x + b.width) and (a.x + a.width) >= b.x and (a.y) <= (b.y + b.height) and (a.y + a.height) >= b.y then
     return true
   else
     return false
@@ -157,6 +161,8 @@ function _update()
     game_state = 2
     -- restart the game
     if (btn(4)) then _init() end
+  elseif game_state == 0 and btn(4) then
+    _init()
   else
   
     if player.cooldown > 0 then
@@ -181,6 +187,7 @@ function _update()
     timer = timer + timer_direction
 	
 	aliencount = count(aliens)
+	-- move aliens
     for a in all(aliens) do 
 	  if timer % (flr(aliencount / 50 * 10)) == 0 then
 	    movex = (a.x + 1 * timer_direction)
@@ -200,7 +207,7 @@ function _update()
       a.y = a.y + y_direction
 	end
     
-    -- move bullets
+    -- move player bullets
     for i, a in pairs(bullets) do 
       -- out of bounds check
       if a.y <= 0 or a.y >= 128 or a.x <= 0 or a.x >= 128 then
@@ -208,63 +215,75 @@ function _update()
       else
         a.x = a.x + a.vx
         a.y = a.y + a.vy
-      end
-    end
-    for i, a in pairs(abullets) do 
-      -- out of bounds check
-      if a.y <= 0 or a.y >= 128 or a.x <= 0 or a.x >= 128 then
-        deli(abullets, i)
-      else
-        a.x = a.x + a.vx
-        a.y = a.y + a.vy
+		
+	    -- check for collisions with the blocks
+	    for j, b in pairs(blocks) do
+		  if collision(a, b) then
+		    b.hp = b.hp - 1
+		    deli(bullets, i)
+		    if b.hp <= 0 then
+		      deli(blocks, j)
+	        end
+		  end
+	    end
       end
     end
 	
-    -- check for collision
-    -- bullet collision
-    for j,b in pairs(abullets) do
-      --if (player.y + 3) >= b.y and (player.y) <= b.y and (player.x - 1) <= b.x and (player.x + 3) >= b.x then
-	  if collision(player, b) then
-        game_state = 0
-		add(killed, b)
-		gameover()
-      end
-	  
-	  for i,a in pairs(blocks) do
-	    --if (a.x - 1) <= b.x and (a.x + a.xsize) > b.x and a.y <= b.y and (a.y + a.ysize) < b.y then
-		if collision(a, b) then
-		  a.hp = a.hp - 1
-		  deli(abullets, j)
-		  if a.hp <= 0 then
-		    deli(blocks, i)
+	-- move alien bullets
+    for i, a in pairs(abullets) do 
+	  if game_state == 1 then
+        -- out of bounds check
+        if a.y <= 0 or a.y >= 128 or a.x <= 0 or a.x >= 128 then
+          deli(abullets, i)
+        else
+          a.x = a.x + a.vx
+          a.y = a.y + a.vy
+		  
+	      if collision(player, a) then
+            game_state = 0
+		    add(killed, a)
+		    gameover()
+          end
+	      
+	      -- check for collisions with the blocks
+	      for j, b in pairs(blocks) do
+		    if collision(a, b) then
+		      b.hp = b.hp - 1
+		      deli(abullets, i)
+		      if b.hp <= 0 then
+		        deli(blocks, j)
+	          end
+		    end
 	      end
-		end
-	  end
+	    end
+      end
     end
 
+    -- check alien collision
     for i,a in pairs(aliens) do 
-      --DEAD??
-      --if (a.y + 3) >= (player.y) and (a.x) <= (player.x + 6) and (a.x) >= (player.x - 1) then 
-	  if collision(a, player) then
-        game_state = 0
-		add(killed, a)
-		gameover()
-      else
-        -- bullet collision
-        for j,b in pairs(bullets) do
-          --if (a.y + 3) >= b.y and (a.y) <= b.y and (a.x - 1) <= b.x and (a.x + 3) >= b.x then
-	      if collision(a, b) then
-            deli(aliens, i)
-            deli(bullets, j)
-          elseif a.sprite == 0 then
+	  if game_state == 1 then
+        --DEAD??
+	    if collision(a, player) then
+          game_state = 0
+		  add(killed, a)
+		  gameover()
+        else
+          -- bullet collision
+          for j,b in pairs(bullets) do
+	        if collision(a, b) then
+              deli(aliens, i)
+              deli(bullets, j)
+            elseif a.sprite == 0 then
+              a:fire(a)
+            end
+          end
+	    
+          if count(bullets) == 0 and a.sprite == 0 then
             a:fire(a)
           end
-        end
-	  
-        if count(bullets) == 0 and a.sprite == 0 then
-          a:fire(a)
-        end
-	    a.cooldown = a.cooldown - min(flr(50 / aliencount), 10)
+		  -- speed up alien firing
+	      a.cooldown = a.cooldown - min(flr(50 / aliencount), 10)
+	    end
 	  end
     end
   end
@@ -275,9 +294,14 @@ function _draw()
   cls(1)
   if game_state == 0 then
     print('GAME OVER', 48, 58, 7)
-	for i, a in pairs(killed) do
-	  print("("..a.x..","..a.y.."), ("..a.x + a.width..","..a.y+a.height..")")
-	  print("("..player.x..","..player.y.."), ("..player.x + player.width..","..player.y+player.height..")")
+	if debug_flag == 1 then
+	 for i, a in pairs(killed) do
+	   print("("..a.x..","..a.y.."), ("..a.x + a.width..","..a.y+a.height..")")
+	   print("("..player.x..","..player.y.."), ("..player.x + player.width..","..player.y+player.height..")")
+	   rect(player.x, player.y, player.x + player.width, player.y+player.height)
+	   rect(a.x, a.y, a.x + a.width, a.y+a.height)
+ 
+	 end
 	end
   elseif game_state == 2 then
     print('CONGRATS!', 48, 58, 7)
@@ -285,7 +309,11 @@ function _draw()
   elseif game_state == 1 then
 	  -- draw spaceship
 	  spr(player.sprite, player.x, player.y)
-	  print("("..player.x..","..player.y..")")
+	  if debug_flag == 1 then
+	    rect(player.x, player.y, player.x + player.width, player.y + player.height)
+	    print("("..player.x..","..player.y.."), ("..player.x + player.width..","..player.y + player.height..")")
+	  end
+	  
 	  -- draw aliens  
 	  for a in all(aliens) do 
         spr(1, a.x, a.y) 
@@ -311,5 +339,6 @@ function gameover()
     bullets = { }
     abullets = { }
 	aliens = { }
+	blocks = { }
   end
 end
