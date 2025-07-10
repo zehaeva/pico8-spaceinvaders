@@ -11,6 +11,9 @@ timer_direction = 1
 y_direction = 0
 edge = 0
 
+score = 0
+round = 1
+
 alien_columns = 10
 alien_rows = 5
 
@@ -56,10 +59,11 @@ function alien:new (o)
   self.xmax = xmax or 50
   self.width = 5
   self.height = 3
+  self.score = score or 100
   return o
 end
 
-aggressivealien = alien:new()
+aggressivealien = alien:new{score = 150}
 
 function aggressivealien:fire(self)
   --create bullet
@@ -123,6 +127,13 @@ end
 function _init()
   game_state = 1
   
+  score = 0
+  round = 1
+  
+  setround()
+end
+
+function setround()
   player = spaceship:new{x = 64, y = 120, sprite = 2}
   
   bullets = { }
@@ -139,9 +150,9 @@ function _init()
 	  ay = 10 * j
 	  if j == 1 then
 	    r = rnd(15) * 10 + 30
-	    a = aggressivealien:new{x = ax, y = ay, sprite = 0, cc = r, cooldown = r, xmin = ax - 5, xmax = ax + 20}
+	    a = aggressivealien:new{x = ax, y = ay, sprite = 0, cc = r, cooldown = r, xmin = ax - 5, xmax = ax + 20, score = 150}
 	  else
-	    a = alien:new{x = ax, y = ay, sprite = 1, xmin = ax - 5, xmax = ax + 20}
+	    a = alien:new{x = ax, y = ay, sprite = 1, xmin = ax - 5, xmax = ax + 20, score = 100}
 	  end
       add(aliens, a)
     end
@@ -271,6 +282,7 @@ function _update()
           -- bullet collision
           for j,b in pairs(bullets) do
 	        if collision(a, b) then
+			  score = score + a.score
               deli(aliens, i)
               deli(bullets, j)
             elseif a.sprite == 0 then
@@ -306,7 +318,11 @@ function _draw()
   elseif game_state == 2 then
     print('CONGRATS!', 48, 58, 7)
     print('YOU WIN!!', 48, 64, 7)
+	
+	print('score: '..score, 48, 80, 7)
   elseif game_state == 1 then
+      print("score: "..score)
+  
 	  -- draw spaceship
 	  spr(player.sprite, player.x, player.y)
 	  if debug_flag == 1 then
